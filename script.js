@@ -1,4 +1,4 @@
-const socket = io('https://backendvideocall.vercel.app:5000');
+const socket = io('https://backendvideocall.vercel.app');
 const videoGrid = document.getElementById('video-grid')
 const textoUsuarios =document.getElementById('texto-usuarios')
 
