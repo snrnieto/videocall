@@ -1,5 +1,7 @@
-//const socket = io('https://backendvideocall.vercel.app:5000');
-var socket = io('https://language-videocall.herokuapp.com', { transports: ['websocket', 'polling', 'flashsocket'] });
+//const url= 'http://192.168.1.10:5000/';
+const url = 'https://language-videocall.herokuapp.com';
+
+var socket = io(url, { transports: ['websocket', 'polling', 'flashsocket'] });
 const videoGrid = document.getElementById('video-grid')
 const textoUsuarios =document.getElementById('texto-usuarios')
 
@@ -7,15 +9,27 @@ const myPeer = new Peer()
 
 var listPeers;
 var myId;
+var idUser;
 
 const myVideo = document.createElement('video')
 myVideo.muted = true
 
-socket.on("new-user", (peers) => {
-    listPeers=deleteMyId(peers,myId);
-    console.log(listPeers)
-    textoUsuarios.innerHTML = "<h2>Hay "+listPeers.length+" usuarios conectados</h2>"
+socket.on("peers", (peers) => {
+  listPeers=deleteMyId(peers,myId);
+  console.log(listPeers)
+  textoUsuarios.innerHTML = "<h2>Hay "+listPeers.length+" usuarios conectados</h2>"
 });
+
+socket.on('user-disconnected', socketId => {
+  console.log("Usuario desconectado "+socketId)
+  console.log("ID Usuario: "+idUser);
+
+  if (idUser==socketId){
+    console.log("Eliminar video")
+    videoGrid.removeChild(videoGrid.lastChild);
+    
+  }
+})
 
 navigator.mediaDevices.getUserMedia({
     video: true,
@@ -25,22 +39,31 @@ navigator.mediaDevices.getUserMedia({
 
     myPeer.on('call', call => {
         call.answer(stream)
+
+        var user = listPeers.filter(obj => {
+          return obj.peer === call.peer
+        })[0]
+
+        console.log(user)
+
+        idUser = user.socket_id;
+        console.log("ID USER:"+idUser)
         const video = document.createElement('video')
+
         call.on('stream', userVideoStream => {
           addVideoStream(video, userVideoStream)
         })
+
     })
 
-    var randomUser = listPeers[Math.floor(Math.random()*listPeers.length)];
-    var call = myPeer.call(randomUser, stream);
-
-    const video = document.createElement('video')
-
-    call.on('stream', userVideoStream => {
-      addVideoStream(video, userVideoStream)
-    })
-
-
+    if(listPeers!=undefined){
+      if(listPeers.length>0){
+        var randomUser = listPeers[Math.floor(Math.random()*listPeers.length)];
+        idUser = randomUser;
+        connectToNewUser(randomUser,stream)
+        console.log("Conectado: ")
+      }
+    }
 
 
 }).catch(function (e) {
@@ -48,40 +71,34 @@ navigator.mediaDevices.getUserMedia({
     console.log(e)
   });
 
-  myPeer.on('open', id => {
-    socket.emit('join-room', id)
-    console.log(id);
-    myId=id;
-  })
+
   
-function addVideoStream(video, stream) {
-    video.srcObject = stream
-    video.addEventListener('loadedmetadata', () => {
-        video.play()
-    })
-    videoGrid.append(video)
-}
 
+myPeer.on('open', id => {
+  socket.emit('new-user', id)
+  console.log(id);
+  myId=id;
+})
 
-function connectToNewUser(userId, stream) {
-    const call = myPeer.call(userId, stream)
+function connectToNewUser(user, stream) {
+    var userPeer = user.peer
+    const call = myPeer.call(userPeer, stream)
     const video = document.createElement('video')
     call.on('stream', userVideoStream => {
       addVideoStream(video, userVideoStream)
     })
-    call.on('close', () => {
-      video.remove()
-    })
-  
-    peers[userId] = call
-  }
+
+}
+
+function addVideoStream(video, stream) {
+  video.srcObject = stream
+  video.addEventListener('loadedmetadata', () => {
+      video.play()
+  })
+  videoGrid.append(video)
+}
 
 
   function deleteMyId(list,id){
-    return list.filter(function(ele){ 
-        return ele != id; 
-    });
+    return list.filter(function(el) { return el.peer != id; }); 
   }
-
-
-
